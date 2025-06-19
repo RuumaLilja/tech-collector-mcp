@@ -6,3 +6,6 @@ node_modules/
 
 # VSCode 設定など
 .vscode/
+
+# .backup 拡張子のファイルを無視
+*.backup
