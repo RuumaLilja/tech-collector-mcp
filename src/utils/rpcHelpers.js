@@ -1,15 +1,4 @@
 // ── utils/rpcHelpers.js ──
-
-/**
- * JSON-RPC 成功レスポンス生成
- * @param {string|number} id
- * @param {any} result
- * @returns {{jsonrpc: string, id: string|number, result: any}}
- */
-export function makeResult(id, result) {
-  return { jsonrpc: '2.0', id, result };
-}
-
 /**
  * JSON-RPC エラーレスポンス生成
  * @param {string|number} id
@@ -19,6 +8,16 @@ export function makeResult(id, result) {
  */
 export function makeError(id, code, message) {
   return { jsonrpc: '2.0', id, error: { code, message } };
+}
+
+/**
+ * JSON-RPC 成功レスポンス生成
+ * @param {string|number} id
+ * @param {any} result
+ * @returns {{jsonrpc: string, id: string|number, result: any}}
+ */
+export function makeResult(id, result) {
+  return { jsonrpc: '2.0', id, result };
 }
 
 /**

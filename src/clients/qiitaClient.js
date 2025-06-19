@@ -13,7 +13,7 @@ const DEFAULT_HEADERS = {
  * @returns {Promise<any[]>}
  */
 export async function fetchItems(query, page = 1) {
-  const url = `https://qiita.com/api/v2/items?per_page=100&page=${page}&query=${encodeURIComponent(query)}`;
+  const url = `https://qiita.com/api/v2/items?per_page=${page}&page=${page}&query=${encodeURIComponent(query)}`;
   const resp = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 10000 });
   return Array.isArray(resp.data) ? resp.data : [];
 }

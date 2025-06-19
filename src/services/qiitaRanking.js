@@ -1,54 +1,75 @@
 // ── services/qiitaRanking.js ──
 import { fetchItems } from '../clients/qiitaClient.js';
+import { ValidationError, ServiceError } from '../utils/errors.js';
+import { PAGE_LIMIT, SCORE_WEIGHT } from '../config/constants.js';
+import { subDays, subMonths } from 'date-fns';
 
 /**
- * 期間フィルタ日付を計算
- * @param {'daily'|'weekly'|'monthly'} period
- * @returns {Date}
- */
-function calcCutoff(period) {
-  const now = new Date();
-  switch(period) {
-    case 'daily':  now.setDate(now.getDate() - 1); break;
-    case 'weekly': now.setDate(now.getDate() - 7); break;
-    case 'monthly': now.setMonth(now.getMonth() - 1); break;
-  }
-  return now;
-}
-
-/**
- * メインロジック: Qiita ランキング取得
+ * メインロジック: Qiita ランキング取得と整形
  * @param {{period?: string, category?: string, count?: number}} args
- * @returns {Promise<object[]>}
+ * @returns {Promise<string>} フォーマット済みランキング文字列
  */
-export async function getQiitaRankingData({ period = 'weekly', category, count = 10 }) {
-  const cutoff = calcCutoff(period);
+export async function getQiitaRankingText({ period = 'weekly', category, count = 10 }) {
+  if (typeof count !== 'number' || count < 1 || count > 100) {
+    throw new ValidationError('count must be 1–100');
+  }
+  if (!['daily', 'weekly', 'monthly'].includes(period)) {
+    throw new ValidationError('period must be daily, weekly, or monthly');
+  }
+
+  let cutoff;
+  if (period === 'daily') cutoff = subDays(new Date(), 1);
+  else if (period === 'weekly') cutoff = subDays(new Date(), 7);
+  else cutoff = subMonths(new Date(), 1);
+
   const dateFilter = cutoff.toISOString().split('T')[0];
   let query = `created:>${dateFilter}`;
-  if (period==='daily')   query += ' stocks:>0';
-  if (period==='weekly')  query += ' stocks:>5';
-  if (period==='monthly') query += ' stocks:>10';
-  if (category)           query += ` tag:${category}`;
+  if (period === 'daily') query += ' stocks:>0';
+  if (period === 'weekly') query += ' stocks:>5';
+  if (period === 'monthly') query += ' stocks:>10';
+  if (category) query += ` tag:${category}`;
 
-  const all = [];
-  for (let p = 1; p <= 3; p++) {
-    all.push(...await fetchItems(query, p));
+  try {
+    const allItems = [];
+    for (let page = 1; page <= PAGE_LIMIT; page++) {
+      const items = await fetchItems(query, page);
+      allItems.push(...items);
+    }
+
+    const filtered = Array.from(
+      new Map(
+        allItems
+          .filter(item => new Date(item.created_at) >= cutoff)
+          .map(item => [item.id, item])
+      ).values()
+    );
+
+    const sorted = filtered
+      .sort(
+        (a, b) =>
+          a.likes_count * SCORE_WEIGHT.like + a.stocks_count * SCORE_WEIGHT.stock <
+          b.likes_count * SCORE_WEIGHT.like + b.stocks_count * SCORE_WEIGHT.stock
+            ? 1
+            : -1
+      )
+      .slice(0, count);
+
+    const lines = [`📈 人気記事 TOP${sorted.length}`];
+    sorted.forEach((it, idx) => {
+      const score = it.likes_count * SCORE_WEIGHT.like + it.stocks_count * SCORE_WEIGHT.stock;
+      lines.push(
+        `${idx + 1}. ${it.title}\n` +
+          `   👍 ${it.likes_count}  📚 ${it.stocks_count} (score: ${score})\n` +
+          `   ${new Date(it.created_at).toLocaleString('ja-JP')}\n` +
+          `   ${it.url}`
+      );
+    });
+
+    return lines.join('\n\n');
+  } catch (err) {
+    if (err.response) {
+      throw new ServiceError(`Qiita API error: ${err.message}`);
+    }
+    throw new ServiceError(err.message);
   }
-
-  const unique = Array.from(
-    new Map(all.filter(i=>new Date(i.created_at)>=cutoff).map(i=>[i.id, i])).values()
-  );
-  const sorted = unique
-    .sort((a,b)=>(b.likes_count + 2*b.stocks_count) - (a.likes_count + 2*a.stocks_count))
-    .slice(0, count)
-    .map((it,i) => ({
-      rank: i+1,
-      title: it.title,
-      url: it.url,
-      likes: it.likes_count,
-      stocks: it.stocks_count,
-      score: it.likes_count + 2*it.stocks_count,
-      created_at: it.created_at,
-    }));
-  return sorted;
 }
