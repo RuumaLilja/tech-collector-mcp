@@ -1,0 +1,8 @@
+# 環境変数ファイル（本番キーなどを含む）
+.env
+
+# 依存モジュール
+node_modules/
+
+# VSCode 設定など
+.vscode/
