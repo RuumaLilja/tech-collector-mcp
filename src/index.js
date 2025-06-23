@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import './config/environment.js';
 import { toolList } from './config/toolDefinitions.js';
-import { getQiitaRankingData } from './services/qiitaRanking.js';
+import { getQiitaRankingText } from './services/qiitaRanking.js';
 import { summarizeQiitaArticle } from './services/articleSummarizer.js';
 import { sendResponse, sendErrorResponse, makeResult } from './utils/rpcHelpers.js';
 
@@ -40,8 +40,7 @@ class QiitaMCPServer {
             const { name, arguments: args } = params || {};
 
             if (name === 'get_qiita_ranking') {
-              const data = await getQiitaRankingData(args);
-              const text = formatOutput('get_qiita_ranking', data);
+              const text = await getQiitaRankingText(args);
               sendResponse(makeResult(id, { content: [{ type: 'text', text }] }));
 
             } else if (name === 'summarize_qiita_article') {
