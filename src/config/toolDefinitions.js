@@ -1,4 +1,4 @@
-// ── config/toolDefinitions.js ──
+// File: src/config/toolDefinitions.js
 export const toolList = {
   initialize: {
     jsonrpc: '2.0',
@@ -18,7 +18,11 @@ export const toolList = {
           inputSchema: {
             type: 'object',
             properties: {
-              period: { type: 'string', enum: ['daily','weekly','monthly'], default: 'weekly' },
+              period: {
+                type: 'string',
+                enum: ['daily', 'weekly', 'monthly'],
+                default: 'weekly',
+              },
               category: { type: 'string' },
               count: { type: 'number', default: 10, minimum: 1, maximum: 100 },
             },
@@ -30,8 +34,22 @@ export const toolList = {
           description: 'Summarize a specific Qiita article via local LLM',
           inputSchema: {
             type: 'object',
-            properties: { url: { type: 'string' }, title: { type: 'string' } },
-            required: ['url'],
+            properties: {
+              url: { type: 'string' },
+              title: { type: 'string' },
+              level: {
+                type: 'string',
+                enum: ['short', 'detailed'],
+                default: 'short',
+                description: '要約の長さを short／detailed で指定',
+              },
+              user_request: {
+                type: 'string',
+                description:
+                  '「実装中心に」「問題解決を簡潔に」などユーザーの要望',
+              },
+            },
+            required: ['url', 'user_request'],
             additionalProperties: false,
           },
         },

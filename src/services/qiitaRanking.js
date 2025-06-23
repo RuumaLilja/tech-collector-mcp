@@ -1,4 +1,4 @@
-// ── services/qiitaRanking.js ──
+// File: src/services/qiitaRanking.js
 import { fetchItems } from '../clients/qiitaClient.js';
 import { ValidationError, ServiceError } from '../utils/errors.js';
 import { PAGE_LIMIT, SCORE_WEIGHT } from '../config/constants.js';
@@ -17,6 +17,7 @@ export async function getQiitaRankingText({ period = 'weekly', category, count =
     throw new ValidationError('period must be daily, weekly, or monthly');
   }
 
+  // カットオフ日時の計算
   let cutoff;
   if (period === 'daily') cutoff = subDays(new Date(), 1);
   else if (period === 'weekly') cutoff = subDays(new Date(), 7);
@@ -30,30 +31,31 @@ export async function getQiitaRankingText({ period = 'weekly', category, count =
   if (category) query += ` tag:${category}`;
 
   try {
-    const allItems = [];
-    for (let page = 1; page <= PAGE_LIMIT; page++) {
+    const seen = new Set();
+    const itemsAcc = [];
+    // 早期停止: 必要件数集まったらループを抜ける
+    outer: for (let page = 1; page <= PAGE_LIMIT; page++) {
       const items = await fetchItems(query, page);
-      allItems.push(...items);
+      for (const item of items) {
+        const created = new Date(item.created_at);
+        if (created < cutoff) continue;
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        itemsAcc.push(item);
+        if (itemsAcc.length >= count) break outer;
+      }
     }
 
-    const filtered = Array.from(
-      new Map(
-        allItems
-          .filter(item => new Date(item.created_at) >= cutoff)
-          .map(item => [item.id, item])
-      ).values()
-    );
-
-    const sorted = filtered
-      .sort(
-        (a, b) =>
-          a.likes_count * SCORE_WEIGHT.like + a.stocks_count * SCORE_WEIGHT.stock <
-          b.likes_count * SCORE_WEIGHT.like + b.stocks_count * SCORE_WEIGHT.stock
-            ? 1
-            : -1
-      )
+    // スコア順にソートして上位 count 件を取得
+    const sorted = itemsAcc
+      .sort((a, b) => {
+        const aScore = a.likes_count * SCORE_WEIGHT.like + a.stocks_count * SCORE_WEIGHT.stock;
+        const bScore = b.likes_count * SCORE_WEIGHT.like + b.stocks_count * SCORE_WEIGHT.stock;
+        return bScore - aScore;
+      })
       .slice(0, count);
 
+    // 結果フォーマット
     const lines = [`📈 人気記事 TOP${sorted.length}`];
     sorted.forEach((it, idx) => {
       const score = it.likes_count * SCORE_WEIGHT.like + it.stocks_count * SCORE_WEIGHT.stock;

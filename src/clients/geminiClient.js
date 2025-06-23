@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
  * @returns {Promise<string>}
  */
 export async function generateSummary(prompt) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
   const result = await model.generateContent(prompt);
   const response = await result.response;
   return response.text().trim() || '要約取得に失敗しました';

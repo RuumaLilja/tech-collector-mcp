@@ -1,5 +1,5 @@
-// ── clients/qiitaClient.js ──
 import axios from 'axios';
+import { ITEMS_PER_PAGE } from '../config/constants.js';
 
 const DEFAULT_HEADERS = {
   Accept: 'application/json',
@@ -13,7 +13,8 @@ const DEFAULT_HEADERS = {
  * @returns {Promise<any[]>}
  */
 export async function fetchItems(query, page = 1) {
-  const url = `https://qiita.com/api/v2/items?per_page=${page}&page=${page}&query=${encodeURIComponent(query)}`;
+  const perPage = ITEMS_PER_PAGE;
+  const url = `https://qiita.com/api/v2/items?per_page=${perPage}&page=${page}&query=${encodeURIComponent(query)}`;
   const resp = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 10000 });
   return Array.isArray(resp.data) ? resp.data : [];
 }
