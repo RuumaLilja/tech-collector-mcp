@@ -1,5 +1,3 @@
-// File: src/services/qiitaRanking.js
-
 import { fetchItems, fetchItemsByTag } from '../clients/qiitaClient.js';
 import { ValidationError, ServiceError } from '../utils/errors.js';
 import { PAGE_LIMIT, SCORE_WEIGHT } from '../config/constants.js';
@@ -34,19 +32,15 @@ export async function getQiitaRankingText({
     const seen = new Set();
     const itemsAcc = [];
 
-    // 1ページずつ取得（カテゴリー指定がある場合はタグ専用 API を使う）
+    // 1ページずつ取得
     const fetchFn = category ? fetchItemsByTag : fetchItems;
-    // 検索クエリは search と統一。タグ版は query 引数を無視するので OK
     const queryOrTag = category || query;
 
     outer: for (let page = 1; page <= PAGE_LIMIT; page++) {
-      const items = category
-        ? await fetchFn(queryOrTag, page) // tag API: queryOrTag がタグ名
-        : await fetchFn(queryOrTag, page); // search API: queryOrTag が検索文字列
-
+      const items = await fetchFn(queryOrTag, page, count);
       for (const item of items) {
         const created = new Date(item.created_at);
-        if (created < cutoff) continue; // 期間外はスキップ
+        if (created < cutoff) continue;
         if (seen.has(item.id)) continue;
         seen.add(item.id);
         itemsAcc.push(item);
@@ -54,7 +48,7 @@ export async function getQiitaRankingText({
       }
     }
 
-    // ソートとフォーマットは従来通り
+    // スコア順にソート＆フォーマット
     const sorted = itemsAcc
       .sort((a, b) => {
         const aScore =

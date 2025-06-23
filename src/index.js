@@ -16,107 +16,101 @@ class QiitaMCPServer {
 
   init() {
     process.stdin.setEncoding('utf8');
+    let buffer = '';
     process.stdin.on('data', async (chunk) => {
-      for (const line of chunk.trim().split('\n')) {
+      buffer += chunk;
+      let nl;
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
         if (!line) continue;
-        let msg;
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          sendErrorResponse('unknown', -32700, 'Parse error');
-          continue;
-        }
-
-        const { id, method, params } = msg;
-        if (id === undefined || !method) {
-          sendErrorResponse(
-            id ?? 'unknown',
-            -32600,
-            'Invalid JSON-RPC request'
-          );
-          continue;
-        }
-
-        try {
-          if (method === 'initialize') {
-            sendResponse({ ...toolList.initialize, id });
-          } else if (method === 'tools/list') {
-            sendResponse({ ...toolList['tools/list'], id });
-          } else if (method === 'tools/call') {
-            const { name, arguments: args } = params || {};
-
-            if (name === 'get_qiita_ranking') {
-              const text = await getQiitaRankingText(args);
-              sendResponse(
-                makeResult(id, { content: [{ type: 'text', text }] })
-              );
-            } else if (name === 'summarize_qiita_article') {
-              const summary = await summarizeArticle(args);
-              sendResponse(
-                makeResult(id, { content: [{ type: 'text', text: summary }] })
-              );
-            } else {
-              sendErrorResponse(id, -32601, `Method not found: ${name}`);
-            }
-          } else {
-            sendErrorResponse(id, -32601, `Method not found: ${method}`);
-          }
-        } catch (err) {
-          sendErrorResponse(id, -32000, err.message);
-        }
+        await this.handleLine(line);
       }
     });
     console.error('Qiita MCP Server started');
   }
+
+  async handleLine(line) {
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch (err) {
+      console.error(err);
+      sendErrorResponse('unknown', -32700, 'Parse error');
+      return;
+    }
+
+    const { id, method, params } = msg;
+    if (id === undefined || !method) {
+      sendErrorResponse(id ?? 'unknown', -32600, 'Invalid JSON-RPC request');
+      return;
+    }
+
+    try {
+      if (method === 'initialize') {
+        // JSON-RPC 2.0 の形で返す
+        sendResponse(makeResult(id, toolList.initialize.result));
+      } else if (method === 'tools/list') {
+        sendResponse(makeResult(id, toolList['tools/list'].result));
+      } else if (method === 'tools/call') {
+        const { name, arguments: args } = params || {};
+        if (!name) {
+          sendErrorResponse(id, -32600, 'Tool name not provided');
+          return;
+        }
+        let output;
+        if (name === 'get_qiita_ranking') {
+          output = await getQiitaRankingText(args);
+        } else if (name === 'summarize_qiita_article') {
+          const { url, title, body, user_request, level } = args;
+          const safeBody =
+            body ??
+            (await import('./clients/qiitaClient.js').then((m) =>
+              m.fetchArticle(m.extractId(url))
+            ));
+          output = await summarizeArticle(
+            { url, title, body: safeBody },
+            user_request || '',
+            level
+          );
+        } else {
+          throw new Error(`Method not found: ${name}`);
+        }
+        sendResponse(
+          makeResult(id, { content: [{ type: 'text', text: output }] })
+        );
+      } else {
+        sendErrorResponse(id, -32601, `Method not found: ${method}`);
+      }
+    } catch (err) {
+      console.error(err);
+      sendErrorResponse(id, -32000, err.message);
+    }
+  }
 }
-/**
- * Handle JSON-RPC requests and route to the appropriate service.
- *
- * @param {string} method  JSON-RPC method name
- * @param {object} params  Parameters for the method
- * @returns {Promise<any>} Result of the service call
- */
+
+new QiitaMCPServer();
+
+// テスト用のエクスポート
+export { QiitaMCPServer };
 export async function handleRequest(method, params) {
   switch (method) {
     case 'get_qiita_ranking':
       return getQiitaRankingText(params);
-
-    case 'summarize_qiita_article':
+    case 'summarize_qiita_article': {
+      const { url, title, body, user_request, level } = params;
+      const safeBody =
+        body ??
+        (await import('./clients/qiitaClient.js').then((m) =>
+          m.fetchArticle(m.extractId(url))
+        ));
       return summarizeArticle(
-        { url: params.url, title: params.title, body: params.body },
-        params.user_request || '',
-        params.level
+        { url, title, body: safeBody },
+        user_request || '',
+        level
       );
-
+    }
     default:
       throw new Error(`Unknown method: ${method}`);
   }
 }
-
-/**
- * 結果を文字列として整形
- * @param {string} toolName
- * @param {any} data
- * @returns {string}
- */
-function formatOutput(toolName, data) {
-  if (toolName === 'get_qiita_ranking') {
-    const header = `📈 人気記事 TOP${data.length}`;
-    const body = data
-      .map(
-        (it) =>
-          `${it.rank}. ${it.title}\n   👍 ${it.likes}  📚 ${
-            it.stocks
-          } (score: ${it.score})\n   ${new Date(it.created_at).toLocaleString(
-            'ja-JP'
-          )}\n   ${it.url}`
-      )
-      .join('\n\n');
-    return `${header}\n\n${body}`;
-  } else if (toolName === 'summarize_qiita_article') {
-    return data;
-  }
-  return JSON.stringify(data);
-}
-
-new QiitaMCPServer();

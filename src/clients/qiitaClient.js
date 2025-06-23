@@ -1,67 +1,65 @@
-// File: src/clients/qiitaClient.js
 import axios from 'axios';
-import axiosRetry from 'axios-retry';
 import Bottleneck from 'bottleneck';
-import { QIITA_TOKEN } from '../config/environment.js';
-import { ITEMS_PER_PAGE } from '../config/constants.js';
 
-// Rate limiter: max 10 requests per second
-const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 100 });
+// Bottleneck で QoS を維持しつつ最大同時実行数を 5 に設定
+const limiter = new Bottleneck({ maxConcurrent: 5, minTime: 100 });
 
-// Axios instance configuration
-const axiosInstance = axios.create({
-  baseURL: 'https://qiita.com/api/v2',
-  headers: {
-    Accept: 'application/json',
-    'User-Agent': 'QiitaMCPServer/1.0.0',
-    ...(QIITA_TOKEN ? { Authorization: `Bearer ${QIITA_TOKEN}` } : {}),
-  },
-});
-
-// Retry on network errors or 5xx responses
-axiosRetry(axiosInstance, {
-  retries: 3,
-  retryDelay: axiosRetry.exponentialDelay,
-  retryCondition: error => axiosRetry.isNetworkError(error) || error.response?.status >= 500,
+export const axiosInstance = axios.create({
+  baseURL: 'https://qiita.com',
+  headers: { 'Content-Type': 'application/json' },
 });
 
 /**
- * Search Qiita items with a query.
- * @param {string} query  Search query (e.g., 'tag:javascript created:>2025-06-01')
- * @param {number} page   Page number (1-indexed)
- * @returns {Promise<any[]>}
+ * 記事一覧取得: 検索 API 用
+ * @param {string} query Qiita API の query パラメータ（例: 'stocks:>5 created:>2025-06-01'）
+ * @param {number} page ページ番号
+ * @param {number} perPage 1ページあたり取得件数
+ * @returns {Promise<Array>} 記事オブジェクトの配列
  */
-export async function fetchItems(query, page = 1) {
-  return limiter.schedule(() =>
-    axiosInstance
-      .get('/items', { params: { query, per_page: ITEMS_PER_PAGE, page } })
-      .then(res => res.data)
+export async function fetchItems(query, page = 1, perPage = 20) {
+  const response = await limiter.schedule(() =>
+    axiosInstance.get(`/api/v2/items`, {
+      params: { page, per_page: perPage, query },
+    })
   );
+  return response.data;
 }
 
 /**
- * Fetch Qiita items by a specific tag.
- * @param {string} tag   Tag name
- * @param {number} page  Page number (1-indexed)
- * @returns {Promise<any[]>}
+ * 記事一覧取得: タグ API 用
+ * @param {string} tag Qiita のタグ名
+ * @param {number} page ページ番号
+ * @param {number} perPage 1ページあたり取得件数
+ * @returns {Promise<Array>} 記事オブジェクトの配列
  */
-export async function fetchItemsByTag(tag, page = 1) {
-  return limiter.schedule(() =>
-    axiosInstance
-      .get(`/tags/${encodeURIComponent(tag)}/items`, { params: { per_page: ITEMS_PER_PAGE, page } })
-      .then(res => res.data)
+export async function fetchItemsByTag(tag, page = 1, perPage = 20) {
+  const response = await limiter.schedule(() =>
+    axiosInstance.get(`/api/v2/tags/${encodeURIComponent(tag)}/items`, {
+      params: { page, per_page: perPage },
+    })
   );
+  return response.data;
 }
 
 /**
- * Fetch a single Qiita article by its ID.
- * @param {string} itemId  Article ID
- * @returns {Promise<any>}
+ * 記事 ID から本文を取得
+ * @param {string} id Qiita 投稿 ID
+ * @returns {Promise<string>} Markdown 本文
  */
-export async function fetchArticle(itemId) {
-  return limiter.schedule(() =>
-    axiosInstance
-      .get(`/items/${encodeURIComponent(itemId)}`)
-      .then(res => res.data)
+export async function fetchArticle(id) {
+  const response = await limiter.schedule(() =>
+    axiosInstance.get(`/api/v2/items/${id}`)
   );
+  return response.data.body;
+}
+
+/**
+ * Qiita 記事 URL から投稿 ID 部分を抽出
+ * @param {string} url 記事 URL
+ * @returns {string} 投稿 ID
+ */
+export function extractId(url) {
+  const match = url.match(/\/items\/([-\w]+)/);
+  if (!match) throw new Error(`Invalid Qiita URL: ${url}`);
+  return match[1];
 }
