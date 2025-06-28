@@ -22,36 +22,27 @@ export async function summarizeArticle({
   targetLanguage = 'ja',
 }) {
   try {
-    // 1. 記事本文を取得
+    // 記事本文を取得
     const { data: html } = await axios.get(url);
-    // 2. HTML タグを除去してプレーンテキスト化
+    // HTMLタグを除去してプレーンテキスト化
     const text = html.replace(/<[^>]+>/g, ' ');
 
-    // 3. プロンプト選択
-    let basePrompt;
-    const optKey = `${level}_${user_request}`;
-    if (user_request && prompts.optimized?.components?.focuses[user_request]) {
-      basePrompt = prompts.optimized.components.focuses[user_request];
-    } else {
-      const langLabel = targetLanguage === 'ja' ? 'Japanese' : 'English';
-      basePrompt = `${prompts.generic[level]} in ${langLabel}:`;
-    }
+    // プロンプト選択
+    const langLabel = targetLanguage === 'ja' ? 'Japanese' : 'English';
+    const basePrompt = `${prompts.generic[level]} in ${langLabel}:`;
 
-    // 4. メタ情報の付加
+    // プロンプト組み立て
     const meta = [];
     if (title) meta.push(`Title: ${title}`);
     meta.push(`URL: ${url}`);
 
-    // 5. プロンプト組み立て
     const prompt = [basePrompt, user_request, ...meta, text]
       .filter(Boolean)
       .join('\n\n');
 
-    // 6. Gemini モデル実行
-    const summary = await generateSummary(prompt);
-    return summary;
+    // Gemini API で要約生成
+    return await generateSummary(prompt);
   } catch (err) {
-    console.error('summarizeService error:', err);
     throw new ServiceError(`要約生成に失敗しました: ${err.message}`);
   }
 }
