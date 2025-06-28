@@ -17,9 +17,21 @@ dotenvFlow.config({
   // defaultNodeEnv: 'development',  // 必要に応じてデフォルト環境を指定
 });
 
+// ==== API キー / トークン =====
 // 必須：Gemini API キー
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// 任意：Qiita のアクセストークン（次のステップで使います）
-export const QIITA_TOKEN = process.env.QIITA_TOKEN;
+// 任意：Qiita のアクセストークン
+export const QIITA_TOKEN = process.env.QIITA_TOKEN || '';
+// 任意：Dev.to のAPI キー
+export const DEVTO_API_KEY = process.env.DEVTO_API_KEY || '';
+// 任意：NewsAPI.org の API キー
+export const NEWSAPI_KEY = process.env.NEWSAPI_KEY || '';
+
 // 任意：ログレベル
 export const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+
+// ==== ページネーション設定 =====
+// デフォルト取得件数
+export const PAGE_LIMIT = parseInt(process.env.PAGE_LIMIT || '3', 10);
+// 1ページあたりアイテム数
+export const ITEMS_PER_PAGE = parseInt(process.env.ITEMS_PER_PAGE || '100', 10);

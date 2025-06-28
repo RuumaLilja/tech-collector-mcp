@@ -1,5 +1,10 @@
 // ── config/prompts.js ──
 export const prompts = {
+    // 汎用サマリー用のシンプルな英語プロンプト（トークン節約版）
+  generic: {
+    short: 'Summarize the following article in 3 concise bullet points:',
+    detailed: 'Summarize the following article in 7 detailed bullet points:',
+  },
   technical: {
     short: `You are an expert in summarizing technical blog posts.
 Summarize the following article in 3–5 concise bullet points in Japanese only.

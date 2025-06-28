@@ -36,36 +36,133 @@ export const toolList = {
               additionalProperties: false,
             },
           },
-          summarize_qiita_article: {
-            name: 'summarize_qiita_article',
+          summarize_url_article: {
+            name: 'summarize_url_article',
             descriptionForHumans:
-              '指定したQiita記事URLを受け取り、要約を返します。',
+              '指定した任意の URL 記事を取得し、要望に合わせて要約を返します。',
             descriptionForModel:
-              'ユーザーが記事の「要約」や「重要ポイント」を求めたときに自動的に呼び出すツールです。例：「この記事の重要ポイントを教えて」',
+              'ユーザーが「この記事を要約して」「重要ポイントを教えて」など、任意の URL 記事を要約してほしいときに呼び出すツールです。',
             inputSchema: {
               type: 'object',
               properties: {
                 url: {
                   type: 'string',
-                  description: '要約対象のQiita記事URL',
+                  description: '要約対象の記事 URL',
                 },
                 title: {
                   type: 'string',
-                  description: '記事タイトル（プロンプト表示用）',
+                  description: '記事タイトル（プロンプト用。省略可）',
                 },
                 level: {
                   type: 'string',
                   enum: ['short', 'detailed'],
                   default: 'short',
                   description:
-                    '要約の長さ(short: 短く要約/detailed: 詳細に要約)',
+                    '要約の長さ(short: 短く要約 / detailed: 詳細に要約)',
                 },
                 user_request: {
                   type: 'string',
-                  description: '「実装中心に」などユーザーの具体的な要望',
+                  description: '「実装中心に」など具体的な要望',
+                },
+                targetLanguage: {
+                  type: 'string',
+                  enum: ['ja', 'en'],
+                  default: 'ja',
+                  description: '要約の出力言語 (ja: 日本語, en: 英語)',
                 },
               },
               required: ['url', 'user_request'],
+              additionalProperties: false,
+            },
+          },
+          get_devto_articles: {
+            name: 'get_devto_articles',
+            descriptionForHumans:
+              '指定のタグやキーワードでDev.toの記事を取得します。',
+            descriptionForModel:
+              'ユーザーが「Dev.toでjavascriptタグの最新記事を5件教えて」などを求めたときに自動的に呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                tag: {
+                  type: 'string',
+                  description: '取得対象のタグ名',
+                },
+                query: {
+                  type: 'string',
+                  description: '検索キーワード',
+                },
+                count: {
+                  type: 'number',
+                  default: 10,
+                  minimum: 1,
+                  maximum: 100,
+                  description: '取得する記事数',
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+          get_newsapi_articles: {
+            name: 'get_newsapi_articles',
+            descriptionForHumans:
+              'NewsAPI.orgからテクノロジー関連記事を取得します。',
+            descriptionForModel:
+              'ユーザーが「最新のテックニュースを取得して」などを求めたときに呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                country: {
+                  type: 'string',
+                  description: 'ニュースの国コード（例: jp, us）',
+                },
+                count: {
+                  type: 'number',
+                  default: 10,
+                  minimum: 1,
+                  maximum: 100,
+                  description: '取得する記事数',
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+          get_hackernews_topstories: {
+            name: 'get_hackernews_topstories',
+            descriptionForHumans: 'Hacker Newsのトップストーリーを取得します。',
+            descriptionForModel:
+              'ユーザーが「HackerNewsで盛り上がっている技術ネタを教えて」などを求めたときに呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                count: {
+                  type: 'number',
+                  default: 10,
+                  minimum: 1,
+                  maximum: 100,
+                  description: '取得する記事数',
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+          get_all_tech_articles: {
+            name: 'get_all_tech_articles',
+            descriptionForHumans:
+              'Qiita, Dev.to, NewsAPI, Hacker Newsから技術記事をまとめて取得します。',
+            descriptionForModel:
+              'ユーザーが「全部まとめて最新の技術記事を教えて」などを求めたときに呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                countPerSource: {
+                  type: 'number',
+                  default: 5,
+                  minimum: 1,
+                  maximum: 100,
+                  description: '各ソースから取得する記事件数',
+                },
+              },
               additionalProperties: false,
             },
           },
@@ -93,9 +190,7 @@ export const toolList = {
                 enum: ['daily', 'weekly', 'monthly'],
                 default: 'weekly',
               },
-              category: {
-                type: 'string',
-              },
+              category: { type: 'string' },
               count: {
                 type: 'number',
                 default: 10,
@@ -107,30 +202,102 @@ export const toolList = {
           },
         },
         {
-          name: 'summarize_qiita_article',
-          description: 'Summarize a specific Qiita article via local LLM',
+          name: 'summarize_url_article',
+          description: 'Summarize any article by URL via local LLM',
+          descriptionForModel: 
+            'ユーザーが「この記事を要約して」と言ったときに呼び出すツールです。' +
+            'もしユーザーが詳細指定（detailed）をしなければ、必ず short まとめを返してください。' +
+            '詳細指定があれば detailed を使います。',
           inputSchema: {
             type: 'object',
             properties: {
-              url: {
-                type: 'string',
-              },
-              title: {
-                type: 'string',
-              },
+              url: { type: 'string', description: '要約対象の記事URL' },
+              title: { type: 'string', description: '記事タイトル（省略可）' },
               level: {
                 type: 'string',
-                enum: ['short', 'detailed'],
+                enum: ['short','detailed'],
                 default: 'short',
-                description: '要約の長さを short/detailed で指定',
+                description: '要約の長さ。デフォルト short（ユーザー未指定時）。詳細指定時のみ detailed を使う',
               },
               user_request: {
                 type: 'string',
-                description:
-                  '「実装中心に」「問題解決を簡潔に」などユーザーの要望',
+                description: '「重要ポイントを教えて」などの具体的な要望',
+              },
+              targetLanguage: {
+                type: 'string',
+                enum: ['ja','en'],
+                default: 'ja',
+                description: '要約の出力言語',
               },
             },
-            required: ['url', 'user_request'],
+            required: ['url','user_request'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'get_devto_articles',
+          description: 'Get articles from Dev.to',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              tag: { type: 'string' },
+              query: { type: 'string' },
+              count: {
+                type: 'number',
+                default: 10,
+                minimum: 1,
+                maximum: 100,
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'get_newsapi_articles',
+          description: 'Get technology news via NewsAPI.org',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              country: { type: 'string' },
+              count: {
+                type: 'number',
+                default: 10,
+                minimum: 1,
+                maximum: 100,
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'get_hackernews_topstories',
+          description: 'Get top stories from Hacker News',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              count: {
+                type: 'number',
+                default: 10,
+                minimum: 1,
+                maximum: 100,
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'get_all_tech_articles',
+          description: 'Aggregate Qiita, Dev.to, NewsAPI, Hacker News',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              countPerSource: {
+                type: 'number',
+                default: 5,
+                minimum: 1,
+                maximum: 100,
+              },
+            },
             additionalProperties: false,
           },
         },
