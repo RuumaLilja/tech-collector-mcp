@@ -1,29 +1,32 @@
 #!/usr/bin/env node
 import './config/environment.js';
-import { toolList } from './config/toolDefinitions.js';
+import { toolList } from './config/toolDefinitions.static.js';
 import { getQiitaRankingText } from './services/qiitaRanking.js';
-import { summarizeArticle } from './services/summarizeService.js';
 import { getDevtoArticles } from './services/devtoService.js';
 import { getNewsApiArticles } from './services/newsApiService.js';
 import { getHackerNewsTopStories } from './services/hackerNewsService.js';
-import { getAllTechArticles } from './services/aggregatorService.js';
+import { summarizeArticle } from './services/summarizeService.js';
+import { fetchAllArticles } from './services/fetchService.js';
+import { getSimpleRecommendations } from './services/recommenderService.js';
+import { syncArticleToNotion } from './services/syncService.js';
+import { syncAllArticles } from './services/aggregatorService.js';
 import {
   sendResponse,
   sendErrorResponse,
   makeResult,
 } from './utils/rpcHelpers.js';
 import { NotionSdkStorage } from './adapters/notionSdkStorage.js';
-import { syncToNotion } from './services/syncService.js';
-import { getSimpleRecommendations } from './services/recommenderService.js';
-import { injectNotionSyncTool } from './config/dynamicToolDefs.js';
+import { injectNotionSyncTool } from './config/toolDefinitions.dynamic.js';
 
-await injectNotionSyncTool();
+// 起動時に一度だけ propertyMap を取得
+const propertyMap = await injectNotionSyncTool();
 
 class QiitaMCPServer {
   constructor() {
     this.storage = new NotionSdkStorage(
       process.env.NOTION_API_KEY,
-      process.env.NOTION_DATABASE_ID
+      process.env.NOTION_DATABASE_ID,
+      propertyMap
     );
     this.init();
   }
@@ -82,12 +85,25 @@ class QiitaMCPServer {
 
         let result;
         switch (name) {
-          case 'get_qiita_ranking':
+          // — Qiita 関連
+          case 'getQiitaRanking':
             result = await getQiitaRankingText(args);
             break;
+          // — Dev.to 関連
+          case 'getDevtoArticles':
+            result = await getDevtoArticles(args);
+            break;
+          // — NewsAPI 関連
+          case 'getNewsApiArticles':
+            result = await getNewsApiArticles(args);
+            break;
+          // — Hacker News 関連
+          case 'getHackerNewsTopStories':
+            result = await getHackerNewsTopStories(args);
+            break;
 
-          case 'summarize_url_article': {
-            // 汎用URL要約
+          // — 任意 URL 要約
+          case 'summarizeUrlArticle': {
             const {
               url,
               title = '',
@@ -95,7 +111,6 @@ class QiitaMCPServer {
               targetLanguage = 'ja',
               level: requestedLevel,
             } = args;
-            // ユーザーが 'detailed' を明示的に要求しない限り short
             const level = requestedLevel === 'detailed' ? 'detailed' : 'short';
             result = await summarizeArticle({
               url,
@@ -106,31 +121,29 @@ class QiitaMCPServer {
             });
             break;
           }
-
-          case 'get_devto_articles':
-            result = await getDevtoArticles(args);
+          // — 全ソースまとめ取得
+          case 'fetchAllArticles': {
+            const { countPerSource = 1 } = args || {};
+            // fetchService.js の関数を直呼び
+            const articles = await fetchAllArticles(countPerSource);
+            result = articles;
             break;
+          }
 
-          case 'get_newsapi_articles':
-            result = await getNewsApiArticles(args);
-            break;
-
-          case 'get_hackernews_topstories':
-            result = await getHackerNewsTopStories(args);
-            break;
-
-          case 'get_all_tech_articles':
-            result = await getAllTechArticles(args);
-            break;
-
-          case 'syncToNotion':
-            // args は {url,hash,title,summary,collectedAt?}
-            result = await syncToNotion(args, { storage });
-            break;
-
-          case 'getSimpleRecommendations':
-            // args は { limit?: number }
+          // — おすすめ記事
+          case 'recommendArticles':
             result = await getSimpleRecommendations(args, { storage });
+            break;
+
+          // — Notion 同期
+          case 'syncArticleToNotion':
+            result = await syncArticleToNotion(args, { storage });
+            break;
+
+          // — 各ソースをまとめて同期（バッチ）
+          case 'aggregateArticles':
+            // 一括取得＋Notion同期
+            result = await syncAllArticles(args, { storage });
             break;
 
           default:
@@ -138,15 +151,9 @@ class QiitaMCPServer {
             return;
         }
 
-        // レスポンスは文字列化して返却
         sendResponse(
           makeResult(id, {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result),
-              },
-            ],
+            content: [{ type: 'text', text: JSON.stringify(result) }],
           })
         );
         return;
@@ -162,31 +169,28 @@ class QiitaMCPServer {
 
 new QiitaMCPServer();
 
-// テスト用ハンドラエクスポート
 export { QiitaMCPServer };
 export async function handleRequest(method, params) {
   switch (method) {
-    case 'get_qiita_ranking':
+    case 'getQiitaRanking':
       return getQiitaRankingText(params);
-
-    case 'summarize_url_article':
+    case 'summarizeUrlArticle':
       return summarizeArticle(params);
-
-    case 'get_devto_articles':
+    case 'getDevtoArticles':
       return getDevtoArticles(params);
-
-    case 'get_newsapi_articles':
+    case 'getNewsApiArticles':
       return getNewsApiArticles(params);
-
-    case 'get_hackernews_topstories':
+    case 'getHackernewsTopStories':
       return getHackerNewsTopStories(params);
-
-    case 'get_all_tech_articles':
-      return getAllTechArticles(params);
-
-    case 'get_smart_recommendations':
-      return getSmartRecommendations(params);
-
+    case 'aggregateArticles':
+      // テスト時はモック storage を渡す
+      return syncAllArticles(params, {
+        storage: new NotionSdkStorage(
+          process.env.NOTION_API_KEY,
+          process.env.NOTION_DATABASE_ID,
+          {}
+        ),
+      });
     default:
       throw new Error(`Unknown method: ${method}`);
   }
