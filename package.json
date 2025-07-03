@@ -6,6 +6,7 @@
   "type": "module",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@notionhq/client": "^4.0.0",
     "axios": "^1.10.0",
     "axios-retry": "^4.5.0",
     "bottleneck": "^2.19.5",

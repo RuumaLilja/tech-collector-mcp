@@ -166,6 +166,48 @@ export const toolList = {
               additionalProperties: false,
             },
           },
+          syncToNotion: {
+            name: 'syncToNotion',
+            descriptionForHumans:
+              '記事データ（URL, SimHash, タイトル, 要約, collectedAt）を Notion に同期します。',
+            descriptionForModel:
+              'ユーザーが「この記事を Notion に保存して」「ストックしてください」などと言ったときに呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: { type: 'string', description: '記事の URL' },
+                hash: { type: 'string', description: '記事の SimHash' },
+                title: { type: 'string', description: '記事タイトル' },
+                summary: { type: 'string', description: '記事要約' },
+                collectedAt: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: '収集日時 (省略可)',
+                },
+              },
+              required: ['url', 'hash', 'title', 'summary'],
+              additionalProperties: false,
+            },
+          },
+          getSimpleRecommendations: {
+            name: 'getSimpleRecommendations',
+            descriptionForHumans:
+              '未ストック／未読記事とタグ頻度ベースで簡易推薦一覧を返します。',
+            descriptionForModel:
+              'ユーザーが「おすすめの記事を教えて」などと言ったときに呼び出すツールです。',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                limit: {
+                  type: 'number',
+                  default: 10,
+                  minimum: 1,
+                  description: '返却する記事数',
+                },
+              },
+              additionalProperties: false,
+            },
+          },
         },
       },
       serverInfo: {
@@ -204,7 +246,7 @@ export const toolList = {
         {
           name: 'summarize_url_article',
           description: 'Summarize any article by URL via local LLM',
-          descriptionForModel: 
+          descriptionForModel:
             'ユーザーが「この記事を要約して」と言ったときに呼び出すツールです。' +
             'もしユーザーが詳細指定（detailed）をしなければ、必ず short まとめを返してください。' +
             '詳細指定があれば detailed を使います。',
@@ -215,9 +257,10 @@ export const toolList = {
               title: { type: 'string', description: '記事タイトル（省略可）' },
               level: {
                 type: 'string',
-                enum: ['short','detailed'],
+                enum: ['short', 'detailed'],
                 default: 'short',
-                description: '要約の長さ。デフォルト short（ユーザー未指定時）。詳細指定時のみ detailed を使う',
+                description:
+                  '要約の長さ。デフォルト short（ユーザー未指定時）。詳細指定時のみ detailed を使う',
               },
               user_request: {
                 type: 'string',
@@ -225,12 +268,12 @@ export const toolList = {
               },
               targetLanguage: {
                 type: 'string',
-                enum: ['ja','en'],
+                enum: ['ja', 'en'],
                 default: 'ja',
                 description: '要約の出力言語',
               },
             },
-            required: ['url','user_request'],
+            required: ['url', 'user_request'],
             additionalProperties: false,
           },
         },
@@ -293,10 +336,38 @@ export const toolList = {
             properties: {
               countPerSource: {
                 type: 'number',
-                default: 5,
+                default: 1,
                 minimum: 1,
                 maximum: 100,
               },
+            },
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'syncToNotion',
+          description: 'Sync article data to Notion',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              hash: { type: 'string' },
+              title: { type: 'string' },
+              summary: { type: 'string' },
+              collectedAt: { type: 'string', format: 'date-time' },
+            },
+            required: ['url', 'hash', 'title', 'summary'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'getSimpleRecommendations',
+          description:
+            'Get simple recommendations based on unread and hot tags',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              limit: { type: 'number', default: 10, minimum: 1 },
             },
             additionalProperties: false,
           },

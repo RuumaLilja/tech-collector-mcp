@@ -7,10 +7,24 @@ import { getDevtoArticles } from './services/devtoService.js';
 import { getNewsApiArticles } from './services/newsApiService.js';
 import { getHackerNewsTopStories } from './services/hackerNewsService.js';
 import { getAllTechArticles } from './services/aggregatorService.js';
-import { sendResponse, sendErrorResponse, makeResult } from './utils/rpcHelpers.js';
+import {
+  sendResponse,
+  sendErrorResponse,
+  makeResult,
+} from './utils/rpcHelpers.js';
+import { NotionSdkStorage } from './adapters/notionSdkStorage.js';
+import { syncToNotion } from './services/syncService.js';
+import { getSimpleRecommendations } from './services/recommenderService.js';
+import { injectNotionSyncTool } from './config/dynamicToolDefs.js';
+
+await injectNotionSyncTool();
 
 class QiitaMCPServer {
   constructor() {
+    this.storage = new NotionSdkStorage(
+      process.env.NOTION_API_KEY,
+      process.env.NOTION_DATABASE_ID
+    );
     this.init();
   }
 
@@ -59,6 +73,8 @@ class QiitaMCPServer {
 
       if (method === 'tools/call') {
         const { name, arguments: args } = params || {};
+        const storage = this.storage;
+
         if (!name) {
           sendErrorResponse(id, -32600, 'Tool name not provided');
           return;
@@ -81,7 +97,13 @@ class QiitaMCPServer {
             } = args;
             // ユーザーが 'detailed' を明示的に要求しない限り short
             const level = requestedLevel === 'detailed' ? 'detailed' : 'short';
-            result = await summarizeArticle({ url, title, level, user_request, targetLanguage });
+            result = await summarizeArticle({
+              url,
+              title,
+              level,
+              user_request,
+              targetLanguage,
+            });
             break;
           }
 
@@ -99,6 +121,16 @@ class QiitaMCPServer {
 
           case 'get_all_tech_articles':
             result = await getAllTechArticles(args);
+            break;
+
+          case 'syncToNotion':
+            // args は {url,hash,title,summary,collectedAt?}
+            result = await syncToNotion(args, { storage });
+            break;
+
+          case 'getSimpleRecommendations':
+            // args は { limit?: number }
+            result = await getSimpleRecommendations(args, { storage });
             break;
 
           default:
@@ -151,6 +183,9 @@ export async function handleRequest(method, params) {
 
     case 'get_all_tech_articles':
       return getAllTechArticles(params);
+
+    case 'get_smart_recommendations':
+      return getSmartRecommendations(params);
 
     default:
       throw new Error(`Unknown method: ${method}`);

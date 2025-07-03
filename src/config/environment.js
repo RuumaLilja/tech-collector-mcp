@@ -27,6 +27,10 @@ export const DEVTO_API_KEY = process.env.DEVTO_API_KEY || '';
 // 任意：NewsAPI.org の API キー
 export const NEWSAPI_KEY = process.env.NEWSAPI_KEY || '';
 
+// Notion連携用（任意設定）
+export const NOTION_API_KEY = process.env.NOTION_API_KEY || '';
+export const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || '';
+
 // 任意：ログレベル
 export const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
@@ -35,3 +39,4 @@ export const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 export const PAGE_LIMIT = parseInt(process.env.PAGE_LIMIT || '3', 10);
 // 1ページあたりアイテム数
 export const ITEMS_PER_PAGE = parseInt(process.env.ITEMS_PER_PAGE || '100', 10);
+
