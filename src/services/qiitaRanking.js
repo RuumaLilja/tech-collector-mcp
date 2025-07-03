@@ -21,26 +21,23 @@ export async function getQiitaRankingText({
   else if (period === 'weekly') cutoff = subDays(new Date(), 7);
   else cutoff = subMonths(new Date(), 1);
 
-  const dateFilter = cutoff.toISOString().split('T')[0];
+  const dateFilter = cutoff.toISOString().slice(0, 10);
   let query = `created:>${dateFilter}`;
+  // ストック数の閾値
   if (period === 'daily') query += ' stocks:>0';
   if (period === 'weekly') query += ' stocks:>5';
   if (period === 'monthly') query += ' stocks:>10';
+  // カテゴリ指定があればタグも追加
   if (category) query += ` tag:${category}`;
 
   try {
     const seen = new Set();
     const itemsAcc = [];
-
-    // 1ページずつ取得
-    const fetchFn = category ? fetchItemsByTag : fetchItems;
-    const queryOrTag = category || query;
-
+    // 常に fetchItems でクエリ検索
     outer: for (let page = 1; page <= PAGE_LIMIT; page++) {
-      const items = await fetchFn(queryOrTag, page, count);
+      const items = await fetchItems(query, page, count);
       for (const item of items) {
-        const created = new Date(item.created_at);
-        if (created < cutoff) continue;
+        if (new Date(item.created_at) < cutoff) continue;
         if (seen.has(item.id)) continue;
         seen.add(item.id);
         itemsAcc.push(item);
@@ -82,7 +79,7 @@ export async function getQiitaRankingText({
 }
 
 /**
- * Qiita記事を構造化されたオブジェクトとして取得（syncToNotion用）
+ * Qiita記事を構造化されたオブジェクトとして取得（syncArticleToNotion用）
  * @param {Object} params - パラメータ
  * @returns {Promise<Array>} 記事オブジェクトの配列
  */
@@ -144,38 +141,41 @@ export async function getQiitaRankingObjects({
       })
       .slice(0, count);
 
-    // syncToNotion用の統一フォーマットに変換
+    // syncArticleToNotion用の統一フォーマットに変換
     return sorted.map((item, index) => {
-      const score = item.likes_count * SCORE_WEIGHT.like + item.stocks_count * SCORE_WEIGHT.stock;
-      
+      const score =
+        item.likes_count * SCORE_WEIGHT.like +
+        item.stocks_count * SCORE_WEIGHT.stock;
+
       return {
         // 基本情報
         Title: item.title,
         URL: item.url,
-        要約: `Qiita人気記事（${period}）第${index + 1}位。👍 ${item.likes_count}件、📚 ${item.stocks_count}件 (score: ${score})`,
-        
+        要約: `Qiita人気記事（${period}）第${index + 1}位。👍 ${
+          item.likes_count
+        }件、📚 ${item.stocks_count}件 (score: ${score})`,
+
         // メタデータ
         ソース元: 'Qiita',
         ステータス: '未読',
         公開日: item.created_at, // ISO 8601形式
         保存日: new Date().toISOString(),
-        
+
         // タグ情報（技術的なタグ）
-        タグ: item.tags ? item.tags.map(tag => tag.name) : ['Programming'],
-        
+        タグ: item.tags ? item.tags.map((tag) => tag.name) : ['Programming'],
+
         // 追加情報
         著者: item.user?.id || 'unknown',
-        
+
         // 元データも保持（デバッグ用）
         _raw: {
           likes_count: item.likes_count,
           stocks_count: item.stocks_count,
           score: score,
-          ranking: index + 1
-        }
+          ranking: index + 1,
+        },
       };
     });
-
   } catch (err) {
     if (err.response) throw new ServiceError(`Qiita API error: ${err.message}`);
     throw new ServiceError(err.message);
