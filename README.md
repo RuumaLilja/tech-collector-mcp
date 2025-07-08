@@ -11,24 +11,24 @@
 
 `tech-collector-mcp` は **MCP (Model Context Protocol)** を使って複数ソース（Qiita / Dev.to / NewsAPI / Hacker News）の技術記事を一括収集し、 **Gemini API** で要約、さらに **Notion** データベースへ保存まで行える **CLI ベースの実験プロジェクト** です。
 
-| 🔗 機能                | 説明                                                            |
-| -------------------- | ------------------------------------------------------------- |
-| **Zero‑Server**      | JSON‑RPC over STDIO で動作 — Web サーバー不要                          |
-| **Multi‑Source**     | Qiita / Dev.to / NewsAPI.org / Hacker News API を横断ラップ         |
+| 🔗 機能              | 説明                                                                  |
+| -------------------- | --------------------------------------------------------------------- |
+| **Zero‑Server**      | JSON‑RPC over STDIO で動作 — Web サーバー不要                         |
+| **Multi‑Source**     | Qiita / Dev.to / NewsAPI.org / Hacker News API を横断ラップ           |
 | **Summarize**        | 任意 URL 要約 (`summarizeUrlArticle`) & Qiita 特化要約                |
 | **Aggregate**        | 全ソース取得 (`fetchAllArticles`) & Notion 同期 (`aggregateArticles`) |
-| **Recommend**        | ユーザー履歴＋タグ頻度で Notion から簡易レコメンド                                 |
-| **Easy Integration** | Claude Desktop などで関数呼び出し感覚で利用可能                               |
+| **Recommend**        | ユーザー履歴＋タグ頻度で Notion から簡易レコメンド                    |
+| **Easy Integration** | Claude Desktop などで関数呼び出し感覚で利用可能                       |
 
-> **Prototyping Phase** 🛠️ スキーマ & プロンプトは今後も更新予定です。
+> **Prototyping Phase** 🛠️  スキーマ & プロンプトは今後も更新予定です。
 
 ---
 
 ## 🔧 Requirements
 
-* Node.js **18.x** 以上
-* npm または yarn
-* `.env` に以下を設定（例は `.env.example` 参照）
+- Node.js **18.x** 以上
+- npm または yarn
+- `.env` に以下を設定（例は `.env.example` 参照）
 
 ```dotenv
 # ==== API Keys & Tokens ====
@@ -84,13 +84,13 @@ $ node src/index.js
 
 起動後、チャットで例:
 
-* `JavaScriptタグの人気記事を5件教えて`
-* `Dev.toでreactタグの記事を3件取得して`
-* `最新のテックニュースを取得して`
-* `Hacker Newsの人気技術ネタを5件`
-* `全部まとめて最新技術記事を取得して`
-* `https://example.com/article を要約して`
-* `取得した記事を Notion に保存して`
+- `JavaScriptタグの人気記事を5件教えて`
+- `Dev.toでreactタグの記事を3件取得して`
+- `最新のテックニュースを取得して`
+- `Hacker Newsの人気技術ネタを5件`
+- `全部まとめて最新技術記事を取得して`
+- `https://example.com/article を要約して`
+- `取得した記事を Notion に保存して`
 
 ---
 
@@ -138,23 +138,23 @@ tech-collector-mcp/
 
 ## 📖 JSON‑RPC Overview
 
-| Method       | 説明          | Params              | Returns                              |
-| ------------ | ----------- | ------------------- | ------------------------------------ |
-| `initialize` | MCP ハンドシェイク | —                   | 登録ツール一覧 (`capabilities.tools`)       |
-| `tools/list` | 利用可能ツール一覧   | —                   | `name`, `description`, `inputSchema` |
-| `tools/call` | ツール呼び出し     | `name`, `arguments` | 実行結果 (`content[]`)                   |
+| Method       | 説明               | Params              | Returns                               |
+| ------------ | ------------------ | ------------------- | ------------------------------------- |
+| `initialize` | MCP ハンドシェイク | —                   | 登録ツール一覧 (`capabilities.tools`) |
+| `tools/list` | 利用可能ツール一覧 | —                   | `name`, `description`, `inputSchema`  |
+| `tools/call` | ツール呼び出し     | `name`, `arguments` | 実行結果 (`content[]`)                |
 
 ### Main Tools (抜粋)
 
-* **`getQiitaRanking`** — Qiita の人気記事ランキング取得
-* **`getDevtoArticles`** — Dev.to のタグ/検索記事取得
-* **`getNewsApiArticles`** — NewsAPI.org からテックニュース取得
-* **`getHackernewsTopStories`** — Hacker News トップストーリー取得
-* **`fetchAllArticles`** — 全ソースをまとめて最新取得
-* **`summarizeUrlArticle`** — 任意 URL 記事を Gemini で要約
-* **`syncArticleToNotion`** — 記事を Notion に保存
-* **`aggregateArticles`** — 全ソース取得→Notion 一括同期
-* **`recommendArticles`** — 未読 / タグ重み付けの簡易推薦
+- **`getQiitaRanking`** — Qiita の人気記事ランキング取得
+- **`getDevtoArticles`** — Dev.to のタグ/検索記事取得
+- **`getNewsApiArticles`** — NewsAPI.org からテックニュース取得
+- **`getHackerNewsTopStories`** — Hacker News トップストーリー取得
+- **`fetchAllArticles`** — 全ソースをまとめて最新取得
+- **`summarizeUrlArticle`** — 任意 URL 記事を Gemini で要約
+- **`syncArticleToNotion`** — 記事を Notion に保存
+- **`aggregateArticles`** — 全ソース取得 →Notion 一括同期
+- **`recommendArticles`** — 未読 / タグ重み付けの簡易推薦
 
 詳細は `toolDefinitions.*.js` を参照してください。
 
@@ -162,17 +162,17 @@ tech-collector-mcp/
 
 ## 🩹 Troubleshooting
 
-| エラー/症状                             | 解決策                                                     |
-| ---------------------------------- | ------------------------------------------------------- |
+| エラー/症状                        | 解決策                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------ |
 | **Unsupported content type: json** | MCP クライアントが `type: 'text'` でないレスポンスを受け取った場合。ツール実装側をチェック |
-| **401 Unauthorized**               | `.env` の `NEWSAPI_KEY` または `NOTION_API_KEY` が正しいか確認     |
-| **ツールが自動呼び出されない**                  | `descriptionForModel` が意図をカバーしているか確認後、クライアントを再起動        |
+| **401 Unauthorized**               | `.env` の `NEWSAPI_KEY` または `NOTION_API_KEY` が正しいか確認                             |
+| **ツールが自動呼び出されない**     | `description` が意図をカバーしているか確認後、クライアントを再起動                         |
 
 ---
 
 ## 🗺 Roadmap
 
-1. **Phase 1**: Qiitaランキング＋要約 (✅)
+1. **Phase 1**: Qiita ランキング＋要約 (✅)
 2. **Phase 2**: マルチソース収集 (✅)
 3. **Phase 3**: Notion / Obsidian / Slack 連携
 4. **Phase 4**: パーソナライズ推薦 + 定期バッチ
@@ -180,4 +180,4 @@ tech-collector-mcp/
 
 ---
 
-*開発・記事執筆はマイペースに進行中です* 🐢
+_開発・記事執筆はマイペースに進行中です_ 🐢

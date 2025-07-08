@@ -1,28 +1,40 @@
 #!/usr/bin/env node
+
+// -----------------------------
+// 環境設定・ツール定義の読み込み
+// -----------------------------
 import './config/environment.js';
 import { toolList } from './config/toolDefinitions.static.js';
+
+// -----------------------------
+// 各種サービスのインポート
+// -----------------------------
 import { getQiitaRankingText } from './services/qiitaRanking.js';
 import { getDevtoArticles } from './services/devtoService.js';
 import { getNewsApiArticles } from './services/newsApiService.js';
 import { getHackerNewsTopStories } from './services/hackerNewsService.js';
 import { summarizeArticle } from './services/summarizeService.js';
 import { fetchAllArticles } from './services/fetchService.js';
-import { getSimpleRecommendations } from './services/recommenderService.js';
+import { getRecommendations } from './services/recommenderService.js';
 import { syncArticleToNotion } from './services/syncService.js';
 import { syncAllArticles } from './services/aggregatorService.js';
 import {
   sendResponse,
   sendErrorResponse,
   makeResult,
+  wrapContent,
 } from './utils/rpcHelpers.js';
 import { NotionSdkStorage } from './adapters/notionSdkStorage.js';
 import { injectNotionSyncTool } from './config/toolDefinitions.dynamic.js';
 
-// 起動時に一度だけ propertyMap を取得
+// -----------------------------
+// 起動時: Notion データベースの propertyMap を取得
+// -----------------------------
 const propertyMap = await injectNotionSyncTool();
 
 class QiitaMCPServer {
   constructor() {
+    // Notion SDK をラップした Storage を初期化
     this.storage = new NotionSdkStorage(
       process.env.NOTION_API_KEY,
       process.env.NOTION_DATABASE_ID,
@@ -31,6 +43,9 @@ class QiitaMCPServer {
     this.init();
   }
 
+  // -----------------------------
+  // 標準入力の JSON-RPC を読み取って処理
+  // -----------------------------
   init() {
     process.stdin.setEncoding('utf8');
     let buffer = '';
@@ -47,6 +62,9 @@ class QiitaMCPServer {
     console.error('Qiita MCP Server started');
   }
 
+  // -----------------------------
+  // 1メッセージ分の処理
+  // -----------------------------
   async handleLine(line) {
     let msg;
     try {
@@ -64,16 +82,19 @@ class QiitaMCPServer {
     }
 
     try {
+      // --- initialize メソッド ---
       if (method === 'initialize') {
         sendResponse(makeResult(id, toolList.initialize.result));
         return;
       }
 
+      // --- ツール一覧取得 ---
       if (method === 'tools/list') {
         sendResponse(makeResult(id, toolList['tools/list'].result));
         return;
       }
 
+      // --- ツール呼び出し ---
       if (method === 'tools/call') {
         const { name, arguments: args } = params || {};
         const storage = this.storage;
@@ -85,24 +106,27 @@ class QiitaMCPServer {
 
         let result;
         switch (name) {
-          // — Qiita 関連
+          // Qiitaランキング取得
           case 'getQiitaRanking':
-            result = await getQiitaRankingText(args);
-            break;
-          // — Dev.to 関連
-          case 'getDevtoArticles':
-            result = await getDevtoArticles(args);
-            break;
-          // — NewsAPI 関連
-          case 'getNewsApiArticles':
-            result = await getNewsApiArticles(args);
-            break;
-          // — Hacker News 関連
-          case 'getHackerNewsTopStories':
-            result = await getHackerNewsTopStories(args);
+            result = wrapContent(await getQiitaRankingText(args));
             break;
 
-          // — 任意 URL 要約
+          // Dev.to関連記事取得
+          case 'getDevtoArticles':
+            result = wrapContent(await getDevtoArticles(args));
+            break;
+
+          // NewsAPI関連記事取得
+          case 'getNewsApiArticles':
+            result = wrapContent(await getNewsApiArticles(args));
+            break;
+
+          // Hacker News トップストーリー取得
+          case 'getHackerNewsTopStories':
+            result = wrapContent(await getHackerNewsTopStories(args));
+            break;
+
+          // 任意URL要約
           case 'summarizeUrlArticle': {
             const {
               url,
@@ -112,53 +136,92 @@ class QiitaMCPServer {
               level: requestedLevel,
             } = args;
             const level = requestedLevel === 'detailed' ? 'detailed' : 'short';
-            result = await summarizeArticle({
-              url,
-              title,
-              level,
-              user_request,
-              targetLanguage,
-            });
+            result = wrapContent(
+              await summarizeArticle({
+                url,
+                title,
+                level,
+                user_request,
+                targetLanguage,
+              })
+            );
             break;
           }
-          // — 全ソースまとめ取得
+
+          // 全ソース記事一括取得
           case 'fetchAllArticles': {
-            const { countPerSource = 1 } = args || {};
-            // fetchService.js の関数を直呼び
-            const articles = await fetchAllArticles(countPerSource);
-            result = articles;
+            const {
+              countPerSource = 5,
+              period = 'weekly',
+              category,
+              enableQiitaSummary = false,
+            } = args || {};
+
+            console.error('fetchAllArticles params:', {
+              countPerSource,
+              period,
+              category,
+              enableQiitaSummary,
+            });
+
+            const articlesArray = await fetchAllArticles({
+              countPerSource,
+              period,
+              category,
+              enableQiitaSummary,
+            });
+            result = wrapContent({ articles: articlesArray });
             break;
           }
 
-          // — おすすめ記事
+          // おすすめ記事取得 (リコメンダー)
           case 'recommendArticles':
-            result = await getSimpleRecommendations(args, { storage });
+            result = wrapContent(await getRecommendations(args, { storage }));
             break;
 
-          // — Notion 同期
+          // Notion 同期
           case 'syncArticleToNotion':
-            result = await syncArticleToNotion(args, { storage });
+            result = wrapContent(await syncArticleToNotion(args, { storage }));
             break;
 
-          // — 各ソースをまとめて同期（バッチ）
-          case 'aggregateArticles':
-            // 一括取得＋Notion同期
-            result = await syncAllArticles(args, { storage });
+          // 各ソース一括同期
+          case 'aggregateArticles': {
+            const {
+              countPerSource = 1,
+              period = 'weekly',
+              category,
+            } = args || {};
+
+            console.error('aggregateArticles called with:', {
+              countPerSource,
+              period,
+              category,
+            });
+
+            result = wrapContent(
+              await syncAllArticles(
+                {
+                  countPerSource,
+                  period,
+                  category,
+                },
+                { storage }
+              )
+            );
             break;
+          }
 
           default:
             sendErrorResponse(id, -32000, `Unknown tool: ${name}`);
             return;
         }
 
-        sendResponse(
-          makeResult(id, {
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-          })
-        );
+        // 結果を JSON-RPC レスポンスとして返却
+        sendResponse(makeResult(id, result));
         return;
       }
 
+      // メソッド未定義
       sendErrorResponse(id, -32601, `Method not found: ${method}`);
     } catch (err) {
       console.error(err);
@@ -167,8 +230,10 @@ class QiitaMCPServer {
   }
 }
 
+// インスタンス生成して起動
 new QiitaMCPServer();
 
+// テスト用の handleRequest エクスポート
 export { QiitaMCPServer };
 export async function handleRequest(method, params) {
   switch (method) {
@@ -180,10 +245,9 @@ export async function handleRequest(method, params) {
       return getDevtoArticles(params);
     case 'getNewsApiArticles':
       return getNewsApiArticles(params);
-    case 'getHackernewsTopStories':
+    case 'getHackerNewsTopStories':
       return getHackerNewsTopStories(params);
     case 'aggregateArticles':
-      // テスト時はモック storage を渡す
       return syncAllArticles(params, {
         storage: new NotionSdkStorage(
           process.env.NOTION_API_KEY,

@@ -1,3 +1,4 @@
+// qiitaRanking.js
 import { fetchItems, fetchItemsByTag } from '../clients/qiitaClient.js';
 import { ValidationError, ServiceError } from '../utils/errors.js';
 import { PAGE_LIMIT, SCORE_WEIGHT } from '../config/constants.js';
@@ -151,23 +152,18 @@ export async function getQiitaRankingObjects({
         // 基本情報
         Title: item.title,
         URL: item.url,
-        要約: `Qiita人気記事（${period}）第${index + 1}位。👍 ${
-          item.likes_count
-        }件、📚 ${item.stocks_count}件 (score: ${score})`,
-
         // メタデータ
         ソース元: 'Qiita',
         ステータス: '未読',
-        公開日: item.created_at, // ISO 8601形式
+        公開日: item.created_at,
         保存日: new Date().toISOString(),
-
-        // タグ情報（技術的なタグ）
+        // タグ情報
         タグ: item.tags ? item.tags.map((tag) => tag.name) : ['Programming'],
-
         // 追加情報
         著者: item.user?.id || 'unknown',
-
-        // 元データも保持（デバッグ用）
+        // 一意ハッシュ
+        SimHash: `qiita_${item.id}`,
+        // 元データ（メタ情報として活用）
         _raw: {
           likes_count: item.likes_count,
           stocks_count: item.stocks_count,
