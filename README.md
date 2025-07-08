@@ -2,7 +2,6 @@
 
 > **Qiita × MCP × Gemini** — AI クライアントから呼び出せる “技術記事収集・要約 & Notion 連携” プロトタイプ
 
-[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.x-brightgreen)
 
 ---
