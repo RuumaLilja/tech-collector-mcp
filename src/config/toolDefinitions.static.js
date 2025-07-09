@@ -7,14 +7,10 @@ export const toolsMap = {
     descriptionForHumans:
       'Qiita, Dev.to, NewsAPI, Hacker News から最新の技術記事をまとめて取得します。',
     description:
-      'ユーザーが記事の推薦を求めたときに**最優先で使用**するデフォルトツールです。以下のようなリクエストで呼び出してください：\n' +
-      '- 「おすすめの記事教えて」「最新の記事を教えて」\n' +
-      '- 「今日/週間/月間のおすすめは？」\n' +
-      '- 「全ソースから記事を取得して」\n' +
-      '- 「技術記事を見せて」「何かいい記事ない？」\n' +
-      '- 「人気記事を教えて」「トレンドを知りたい」\n' +
-      '- 期間指定がある場合（日間/週間/月間）も含む\n' +
-      '特定のサイト（QiitaのみやDev.toのみ）や特定タグでの絞り込みが明示されていない限り、このツールを使用してください。複数の個別ツールを順次呼び出すよりも効率的です。',
+      '複数のソースから記事を取得したい場合に使用します。以下のようなリクエストで呼び出してください：\n' +
+      '- 「全ソースから記事を取得して」「各サイトから記事を見せて」\n' +
+      '- 「幅広く記事を探して」「色々なソースから」\n' +
+      '- 特定のサイトやストック指定がない一般的な記事推薦でも使用可能です。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,7 +31,10 @@ export const toolsMap = {
     descriptionForHumans:
       '指定された期間・カテゴリでQiitaの人気記事を取得します。',
     description:
-      'ユーザーが「Qiitaの」記事を**明示的に指定**した場合や、「Qiitaでjavascriptタグの記事を」など**Qiitaに限定した条件**を求めたときのみ呼び出します。一般的な記事推薦では fetchAllArticles を優先してください。',
+      'Qiitaの記事を取得したい場合に使用します：\n' +
+      '- 「Qiitaの記事を教えて」「Qiita人気記事は？」\n' +
+      '- 「Qiitaでjavascriptタグの記事を」など特定タグでの絞り込み\n' +
+      '- 「Qiita週間ランキング」など期間指定',
     inputSchema: {
       type: 'object',
       properties: {
@@ -66,7 +65,10 @@ export const toolsMap = {
     name: 'getDevtoArticles',
     descriptionForHumans: '指定のタグやキーワードでDev.toの記事を取得します。',
     description:
-      'ユーザーが「Dev.toの」記事を**明示的に指定**した場合や、「Dev.toでreactタグの記事を」など**Dev.toに限定した条件**を求めたときのみ呼び出します。一般的な記事推薦では fetchAllArticles を優先してください。',
+      'Dev.toの記事を取得したい場合に使用します：\n' +
+      '- 「Dev.toの記事を教えて」「Dev.toで何かいい記事ある？」\n' +
+      '- 「Dev.toでreactタグの記事を」など特定タグでの絞り込み\n' +
+      '- 「Dev.toで検索して」などキーワード検索',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,7 +97,10 @@ export const toolsMap = {
     name: 'getNewsApiArticles',
     descriptionForHumans: 'NewsAPI.orgからテクノロジー関連記事を取得します。',
     description:
-      'ユーザーが「ニュース」「最新ニュース」を**明示的に指定**した場合や、国別のニュースを求めたときのみ呼び出します。一般的な記事推薦では fetchAllArticles を優先してください。',
+      'ニュース記事を取得したい場合に使用します：\n' +
+      '- 「最新ニュース」「テックニュース」「技術ニュース」\n' +
+      '- 「日本のニュース」「アメリカのニュース」など国別指定\n' +
+      '- 「ニュースサイトから」',
     inputSchema: {
       type: 'object',
       properties: {
@@ -120,7 +125,9 @@ export const toolsMap = {
     name: 'getHackerNewsTopStories',
     descriptionForHumans: 'Hacker Newsのトップストーリーを取得します。',
     description:
-      'ユーザーが「Hacker News」「HN」を**明示的に指定**した場合のみ呼び出します。一般的な記事推薦では fetchAllArticles を優先してください。',
+      'Hacker Newsの記事を取得したい場合に使用します：\n' +
+      '- 「Hacker Newsの記事」「HNのトップストーリー」\n' +
+      '- 「Hacker Newsで人気の記事」',
     inputSchema: {
       type: 'object',
       properties: {
@@ -182,7 +189,10 @@ export const toolsMap = {
     descriptionForHumans:
       '未ストック／未読記事とタグ頻度ベースで簡易推薦一覧を返します。',
     description:
-      'ユーザーが「私の興味に合わせて」「未読記事から」「パーソナライズされた記事を」「私向けの記事を」など、**明示的に個人の履歴や興味に基づいた推薦**を求めたときにのみ呼び出すツールです。単純な「おすすめ記事」のリクエストでは使用しないでください。',
+      'ユーザーの過去の履歴に基づいた推薦を行いたい場合に使用します：\n' +
+      '- 「私の興味に合わせて」「未読記事から推薦」\n' +
+      '- 「パーソナライズされた記事を」「私向けの記事を」\n' +
+      '- 「履歴から判断して」「過去の行動から」',
     inputSchema: {
       type: 'object',
       properties: {
@@ -232,7 +242,10 @@ export const toolsMap = {
     descriptionForHumans:
       '各ソースから記事を取得し、Notionに一括で同期します。',
     description:
-      'ユーザーが「全ソースから取得・ストックして」と言ったときに呼び出すツールです。',
+      '記事を取得してNotionに保存したい場合に使用します：\n' +
+      '- 「おすすめ記事をストックして」「記事を保存して」\n' +
+      '- 「全ソースから取得してNotionに」「一括で同期して」\n' +
+      '- 「記事を集めて保存」「まとめて取得・保存」',
     inputSchema: {
       type: 'object',
       properties: {

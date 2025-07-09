@@ -7,28 +7,75 @@ import { computeArticleHash } from '../utils/simhash.js';
 import { subDays, subMonths } from 'date-fns';
 
 /**
+ * 期間を段階的に広げるための設定
+ */
+const FALLBACK_PERIODS = [
+  { period: 'weekly', cutoff: (now) => subDays(now, 7) },
+  { period: 'monthly', cutoff: (now) => subMonths(now, 1) },
+  { period: 'quarterly', cutoff: (now) => subMonths(now, 3) },
+  { period: 'yearly', cutoff: (now) => subMonths(now, 12) },
+];
+
+/**
+ * 安全にデータを処理する関数
+ */
+function validateData(data, sourceName) {
+  try {
+    if (!data) {
+      return null;
+    }
+    
+    if (typeof data === 'object' && data !== null) {
+      return data;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[${sourceName}] データ検証エラー: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * 指定された期間で記事を取得し、足りない場合は期間を広げて再取得
+ */
+async function fetchWithFallback(fetchFunction, targetCount, sourceName) {
+  for (const { period, cutoff } of FALLBACK_PERIODS) {
+    try {
+      const now = new Date();
+      const articles = await fetchFunction(cutoff(now));
+      
+      if (!Array.isArray(articles)) {
+        continue;
+      }
+      
+      if (articles.length >= targetCount) {
+        return articles.slice(0, targetCount);
+      }
+    } catch (error) {
+      console.error(`[${sourceName}] ${period}期間での取得エラー: ${error.message}`);
+    }
+  }
+  
+  return [];
+}
+
+/**
  * 各ソースから記事を取得し、汎用フォーマットで返します。
  * @param {Object} options
- * @param {number} [options.countPerSource=5]
+ * @param {number} [options.countPerSource=3]
  * @param {string} [options.period='weekly']
  * @param {string} [options.category]
  * @returns {Promise<Array<Object>>}
  */
 export async function fetchAllArticles({
-  countPerSource = 5,
+  countPerSource = 3,
   period = 'weekly',
   category,
 } = {}) {
-  const cutoff =
-    period === 'daily'
-      ? subDays(new Date(), 1)
-      : period === 'weekly'
-      ? subDays(new Date(), 7)
-      : subMonths(new Date(), 1);
-
   const articles = [];
 
-  // 1. Qiita
+  // 1. Qiita (期間フィルタリングなし、そのまま)
   try {
     const qiitaItems = await getQiitaRankingObjects({
       period,
@@ -36,41 +83,49 @@ export async function fetchAllArticles({
       count: countPerSource,
     });
     
-    const genericQiita = qiitaItems.map((item) => ({
-      url: item.URL,
-      title: item.Title,
-      tags: item.タグ || [],
-      hash: computeArticleHash({ 
-        id: item._raw?.id,
+    const validatedItems = validateData(qiitaItems, 'Qiita');
+    if (validatedItems && Array.isArray(validatedItems)) {
+      const genericQiita = validatedItems.map((item) => ({
         url: item.URL,
-      }),
-      publishedAt: item.公開日,
-      savedAt: new Date().toISOString(),
-      source: 'Qiita',
-      author: item.著者 || 'unknown',
-      _raw: item._raw,
-    }));
-    
-    articles.push(...genericQiita);
+        title: item.Title,
+        tags: item.タグ || [],
+        hash: item.SimHash,
+        publishedAt: item.公開日,
+        savedAt: new Date().toISOString(),
+        source: 'Qiita',
+        author: item.著者 || 'unknown',
+        _raw: item._raw,
+      }));
+      
+      articles.push(...genericQiita);
+    }
   } catch (err) {
-    console.error('fetchAllArticles: Qiita取得失敗', err);
+    console.error(`[Qiita] 取得失敗: ${err.message}`);
   }
 
-  // 2. Dev.to
-  try {
-    const devtoRaw = await getDevtoArticles({
-      tag: category,
-      count: countPerSource,
-    });
-    
-    const genericDevto = devtoRaw
-      .filter((item) => new Date(item.publishedAt) >= cutoff)
-      .map((item) => ({
+  // 2. Dev.to (フォールバック機能付き)
+  const devtoFetcher = async (cutoff) => {
+    try {
+      const devtoItems = await getDevtoArticles({
+        tag: category,
+        count: countPerSource * 3,
+      });
+      
+      const validatedItems = validateData(devtoItems, 'Dev.to');
+      if (!Array.isArray(validatedItems)) {
+        return [];
+      }
+      
+      const filtered = validatedItems.filter((item) => {
+        const pubDate = new Date(item.publishedAt);
+        return pubDate >= cutoff;
+      });
+      
+      return filtered.map((item) => ({
         url: item.url,
         title: item.title,
         tags: item.tags || [],
         hash: computeArticleHash({
-          id: item.id,
           url: item.url,
         }),
         publishedAt: item.publishedAt,
@@ -79,24 +134,39 @@ export async function fetchAllArticles({
         author: item.author || 'unknown',
         _raw: item,
       }));
-    
-    articles.push(...genericDevto);
+    } catch (error) {
+      console.error(`[Dev.to] 取得エラー: ${error.message}`);
+      return [];
+    }
+  };
+
+  try {
+    const devtoArticles = await fetchWithFallback(devtoFetcher, countPerSource, 'Dev.to');
+    articles.push(...devtoArticles);
   } catch (err) {
-    console.error('fetchAllArticles: Dev.to取得失敗', err);
+    console.error(`[Dev.to] フォールバック失敗: ${err.message}`);
   }
 
-  // 3. NewsAPI
-  try {
-    const newsRaw = await getNewsApiArticles({ count: countPerSource });
-    
-    const genericNews = newsRaw
-      .filter((item) => new Date(item.publishedAt) >= cutoff)
-      .map((item) => ({
+  // 3. NewsAPI (フォールバック機能付き)
+  const newsApiFetcher = async (cutoff) => {
+    try {
+      const newsItems = await getNewsApiArticles({ count: countPerSource * 3 });
+      
+      const validatedItems = validateData(newsItems, 'NewsAPI');
+      if (!Array.isArray(validatedItems)) {
+        return [];
+      }
+      
+      const filtered = validatedItems.filter((item) => {
+        const pubDate = new Date(item.publishedAt);
+        return pubDate >= cutoff;
+      });
+      
+      return filtered.map((item) => ({
         url: item.url,
         title: item.title,
-        // summary: 完全除去
         tags: ['News'],
-        hash : computeArticleHash({
+        hash: computeArticleHash({
           url: item.url,
         }),
         publishedAt: item.publishedAt,
@@ -105,22 +175,36 @@ export async function fetchAllArticles({
         author: item.author || 'unknown',
         _raw: item,
       }));
-    
-    articles.push(...genericNews);
+    } catch (error) {
+      console.error(`[NewsAPI] 取得エラー: ${error.message}`);
+      return [];
+    }
+  };
+
+  try {
+    const newsArticles = await fetchWithFallback(newsApiFetcher, countPerSource, 'NewsAPI');
+    articles.push(...newsArticles);
   } catch (err) {
-    console.error('fetchAllArticles: NewsAPI取得失敗', err);
+    console.error(`[NewsAPI] フォールバック失敗: ${err.message}`);
   }
 
-  // 4. Hacker News
-  try {
-    const hnRaw = await getHackerNewsTopStories({ count: countPerSource });
-    
-    const genericHN = hnRaw
-      .filter((item) => {
-        const t = item.time ? new Date(item.time * 1000) : null;
+  // 4. Hacker News (フォールバック機能付き)
+  const hackerNewsFetcher = async (cutoff) => {
+    try {
+      const hnItems = await getHackerNewsTopStories({ count: countPerSource * 3 });
+      
+      const validatedItems = validateData(hnItems, 'HackerNews');
+      if (!Array.isArray(validatedItems)) {
+        return [];
+      }
+      
+      const filtered = validatedItems.filter((item) => {
+        // item.time は既に ISO 文字列として返される
+        const t = item.time ? new Date(item.time) : null;
         return t && t >= cutoff;
-      })
-      .map((item) => ({
+      });
+      
+      return filtered.map((item) => ({
         url: item.url,
         title: item.title,
         tags: ['HackerNews'],
@@ -128,18 +212,23 @@ export async function fetchAllArticles({
           id: item.id?.toString(),
           url: item.url
         }),
-        publishedAt: item.time
-          ? new Date(item.time * 1000).toISOString()
-          : undefined,
+        publishedAt: item.time || undefined,
         savedAt: new Date().toISOString(),
         source: 'HackerNews',
-        author: item.by || item.author || 'unknown',
+        author: item.author || item.by || 'unknown',
         _raw: item,
       }));
-    
-    articles.push(...genericHN);
+    } catch (error) {
+      console.error(`[HackerNews] 取得エラー: ${error.message}`);
+      return [];
+    }
+  };
+
+  try {
+    const hnArticles = await fetchWithFallback(hackerNewsFetcher, countPerSource, 'HackerNews');
+    articles.push(...hnArticles);
   } catch (err) {
-    console.error('fetchAllArticles: HackerNews取得失敗', err);
+    console.error(`[HackerNews] フォールバック失敗: ${err.message}`);
   }
 
   return articles;

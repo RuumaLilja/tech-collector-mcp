@@ -151,7 +151,7 @@ class QiitaMCPServer {
           // 全ソース記事一括取得
           case 'fetchAllArticles': {
             const {
-              countPerSource = 5,
+              countPerSource = 3,
               period = 'weekly',
               category,
               enableQiitaSummary = false,
