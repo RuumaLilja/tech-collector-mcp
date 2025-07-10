@@ -156,7 +156,7 @@ export async function getNotionDatabaseInfo() {
  * フィールドを必須にするか判定
  */
 function isRequiredProperty(name, type) {
-  const must = ['title', 'url', 'タグ', '要約'];
+  const must = ['title', 'url', 'タグ'];
   if (must.some((m) => name.toLowerCase().includes(m.toLowerCase())))
     return true;
   return type === 'title';

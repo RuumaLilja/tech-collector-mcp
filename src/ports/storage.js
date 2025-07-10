@@ -6,7 +6,6 @@
  * @property {string}        id           - 記事の一意ID (ソース固有ID)
  * @property {string}        url          - 記事URL
  * @property {string}        title        - 記事タイトル
- * @property {string}        summary      - 記事要約
  * @property {string[]}      tags         - 記事のタグ一覧
  * @property {number}        rating       - ユーザー評価 (数値)
  * @property {string}        publishedAt  - 公開日時 (ISO文字列)
@@ -71,7 +70,7 @@ export class StoragePort {
   }
 
   /**
-   * 記事を既読マーク
+   * 記事を読了マーク
    * @param {string} id      - 記事ID
    * @param {Date} readAt    - 読了日時
    * @returns {Promise<void>}

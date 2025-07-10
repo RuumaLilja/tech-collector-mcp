@@ -16,7 +16,6 @@ export function mapToNotionFields(input) {
   // その他フィールド
   const title = input.title || input.Title;
   const url = input.url || input.URL;
-  const summary = input.summary || input['要約'];
   const tags = input.tags || input['タグ'];
   const source = input.source || input['ソース元'];
   const status = input.status || input['ステータス'];
@@ -30,7 +29,6 @@ export function mapToNotionFields(input) {
   console.error('[mapToNotionFields] mapped values:', {
     title,
     url,
-    summary,
     tags,
     hash,
     source,
@@ -54,7 +52,6 @@ export function mapToNotionFields(input) {
   return {
     Title: title,
     URL: url,
-    要約: summary,
     タグ: tags,
     SimHash: hash,
     ソース元: source,

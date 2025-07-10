@@ -211,7 +211,7 @@ export const toolsMap = {
   syncArticleToNotion: {
     name: 'syncArticleToNotion',
     descriptionForHumans:
-      '記事データ（URL, SimHash, タイトル, 要約, collectedAt）を Notion に同期します。',
+      '記事データ（URL, SimHash, タイトル, collectedAt）を Notion に同期します。',
     description:
       'ユーザーが「この記事を Notion に保存して」「ストックしてください」など、**明示的に記事保存を指示した場合にのみ**呼び出すツールです。',
     inputSchema: {
@@ -220,7 +220,6 @@ export const toolsMap = {
         url: { type: 'string', description: '記事の URL' },
         hash: { type: 'string', description: '記事の SimHash' },
         title: { type: 'string', description: '記事タイトル' },
-        summary: { type: 'string', description: '記事要約' },
         source: {
           type: 'string',
           description: '記事のソース元（例: Qiita, Dev.to）',
@@ -231,7 +230,7 @@ export const toolsMap = {
           description: '収集日時 (省略可)',
         },
       },
-      required: ['url', 'hash', 'title', 'summary', 'source'],
+      required: ['url', 'hash', 'title', 'source'],
       additionalProperties: false,
     },
   },

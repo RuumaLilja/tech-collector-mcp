@@ -36,12 +36,13 @@ export class NotionSdkStorage extends StoragePort {
       title: null,
       url: null,
       tags: null,
-      summary: null,
       date: null,
       status: null,
       source: null,
       author: null,
       hash: null, // SimHash 用 internal key
+      rating: null, // 評価用
+      readTime: null, // 読了時間用
     };
 
     // 完全一致マッピング
@@ -55,9 +56,6 @@ export class NotionSdkStorage extends StoragePort {
           break;
         case 'タグ':
           mapping.tags = { name: propName, ...propInfo };
-          break;
-        case '要約':
-          mapping.summary = { name: propName, ...propInfo };
           break;
         case '公開日':
           mapping.date = { name: propName, ...propInfo };
@@ -98,12 +96,6 @@ export class NotionSdkStorage extends StoragePort {
           }
           break;
         case 'rich_text':
-          if (
-            !mapping.summary &&
-            /summary|要約|概要|description/i.test(propName)
-          ) {
-            mapping.summary = { name: propName, ...propInfo };
-          }
           if (!mapping.hash && /hash/i.test(propName)) {
             mapping.hash = { name: propName, ...propInfo };
           }
@@ -276,50 +268,6 @@ export class NotionSdkStorage extends StoragePort {
   }
 
   /**
-   * 未保存または未読の記事を取得（tags, rating を含める）
-   * @param {number} limit
-   */
-  async listUnstoredOrUnread(limit = 10) {
-    const statusProp = this.adaptiveMapping.status;
-    if (!statusProp) return [];
-
-    const filter =
-      statusProp.type === 'checkbox'
-        ? { checkbox: { equals: false } }
-        : { status: { equals: '未読' } };
-
-    const res = await this.notion.databases.query({
-      database_id: this.dbId,
-      filter: { property: statusProp.id, ...filter },
-      sorts: [
-        { property: this.adaptiveMapping.date.id, direction: 'descending' },
-      ],
-      page_size: limit,
-    });
-
-    return res.results.map((p) => {
-      const readTime = this.adaptiveMapping.readTime
-        ? p[this.adaptiveMapping.readTime.id]?.number || 0
-        : 0;
-      return {
-        id: p.id,
-        url: p[this.adaptiveMapping.url.id]?.url || '',
-        title: p[this.adaptiveMapping.title.id]?.title?.[0]?.plain_text || '',
-        summary:
-          p[this.adaptiveMapping.summary.id]?.rich_text?.[0]?.plain_text || '',
-        tags:
-          p[this.adaptiveMapping.tags.id]?.multi_select.map((o) => o.name) ||
-          [],
-        rating: p[this.adaptiveMapping.rating?.id]?.number || 0,
-        publishedAt: p[this.adaptiveMapping.date.id]?.date?.start || null,
-        readTime,
-        stored: false,
-        read_at: null,
-      };
-    });
-  }
-
-  /**
    * 指定ステータス(例: '既読' or '未読')の記事を取得
    * @param {string} statusValue
    * @param {number} limit
@@ -328,16 +276,22 @@ export class NotionSdkStorage extends StoragePort {
     const statusProp = this.adaptiveMapping.status;
     if (!statusProp) return [];
 
-    const filter =
-      statusProp.type === 'checkbox'
-        ? { checkbox: { equals: statusValue !== '未読' } } // checkboxなら false=未読, true=既読
-        : { status: { equals: statusValue } };
+    let filter;
+    if (statusProp.type === 'checkbox') {
+      filter = { checkbox: { equals: statusValue !== '未読' } };
+    } else if (statusProp.type === 'status') {
+      // Notion Status プロパティの場合、名前で検索
+      filter = { status: { equals: statusValue } };
+    } else {
+      // Select プロパティの場合
+      filter = { status: { equals: statusValue } };
+    }
 
     const res = await this.notion.databases.query({
       database_id: this.dbId,
-      filter: { property: statusProp.id, ...filter },
+      filter: { property: statusProp.name, ...filter },
       sorts: [
-        { property: this.adaptiveMapping.date.id, direction: 'descending' },
+        { property: this.adaptiveMapping.date.name, direction: 'descending' },
       ],
       page_size: limit,
     });
@@ -346,18 +300,27 @@ export class NotionSdkStorage extends StoragePort {
       const p = page.properties;
       return {
         id: page.id,
-        url: p[this.adaptiveMapping.url.id]?.url || '',
-        title: p[this.adaptiveMapping.title.id]?.title?.[0]?.plain_text || '',
-        summary:
-          p[this.adaptiveMapping.summary.id]?.rich_text?.[0]?.plain_text || '',
+        url: p[this.adaptiveMapping.url.name]?.url || '',
+        title: p[this.adaptiveMapping.title.name]?.title?.[0]?.plain_text || '',
         tags:
-          p[this.adaptiveMapping.tags.id]?.multi_select.map((o) => o.name) ||
+          p[this.adaptiveMapping.tags.name]?.multi_select.map((o) => o.name) ||
           [],
-        rating: p[this.adaptiveMapping.rating?.id]?.number || 0,
-        publishedAt: p[this.adaptiveMapping.date.id]?.date?.start || null,
-        // stored/read_atなど不要なら省略
+        rating: this._parseRating(p[this.adaptiveMapping.rating?.name]),
+        publishedAt: p[this.adaptiveMapping.date.name]?.date?.start || null,
+        readTime: this.adaptiveMapping.readTime
+          ? p[this.adaptiveMapping.readTime.name]?.number || 0
+          : 0,
       };
     });
+  }
+
+  /**
+   * 評価値を数値に変換（"5" → 5）
+   */
+  _parseRating(ratingProp) {
+    if (!ratingProp?.select?.name) return 0;
+    const num = parseInt(ratingProp.select.name);
+    return isNaN(num) ? 0 : num;
   }
 
   /**
@@ -372,12 +335,46 @@ export class NotionSdkStorage extends StoragePort {
     });
     const counts = {};
     for (const page of res.results) {
-      const opts = page.properties[tagsProp.id].multi_select || [];
+      const opts = page.properties[tagsProp.name].multi_select || [];
       for (const o of opts) counts[o.name] = (counts[o.name] || 0) + 1;
     }
     return Object.entries(counts)
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, limit);
+  }
+
+  /**
+   * 指定タグでストック済 or 読了済の記事を取得
+   * @param {string} tagName
+   * @param {number} limit
+   */
+  async listByTag(tagName, limit = 20) {
+    const tagsProp = this.adaptiveMapping.tags;
+    if (!tagsProp) return [];
+
+    const res = await this.notion.databases.query({
+      database_id: this.dbId,
+      filter: {
+        property: tagsProp.name,
+        multi_select: { contains: tagName },
+      },
+      sorts: [
+        { property: this.adaptiveMapping.date.name, direction: 'descending' },
+      ],
+      page_size: limit,
+    });
+
+    return res.results.map((page) => {
+      const p = page.properties;
+      return {
+        id: page.id,
+        title: p[this.adaptiveMapping.title.name]?.title?.[0]?.plain_text || '',
+        url: p[this.adaptiveMapping.url.name]?.url || '',
+        tags: p[tagsProp.name]?.multi_select.map((o) => o.name) || [],
+        rating: this._parseRating(p[this.adaptiveMapping.rating.name]),
+        published: p[this.adaptiveMapping.date.name]?.date?.start || null,
+      };
+    });
   }
 }
